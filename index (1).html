@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Choir Practice Player</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      max-width: 900px; margin: auto; padding: 20px; line-height: 1.4; }
+    #track-title { margin: 0 0 8px; text-align:center; }
+    #timer { font-weight: 600; text-align:center; }
+    #song-picker { display:none; text-align:center; margin: 10px 0; }
+    #main-controls { display:none; text-align:center; margin: 12px 0 18px; }
+    #play-pause, #stop { padding: 12px 22px; font-size: 1.05rem; border:0; border-radius: 8px; cursor:pointer; margin: 0 6px; }
+    #play-pause { background:#16a34a; color:#fff; } #play-pause[disabled]{opacity:.6;cursor:not-allowed}
+    #stop { background:#ef4444; color:#fff; } #stop[disabled]{opacity:.6;cursor:not-allowed}
+    #jump-controls { display:none; text-align:center; margin-bottom:12px; }
+    #timeline { display:none; margin: 10px 0 20px; height: 44px; background: #f3f4f6;
+      position: relative; overflow-x:auto; white-space:nowrap; border:1px solid #e5e7eb; border-radius:10px; }
+    .measure-tick { display:inline-block; height:100%; width:34px; position:relative; border-left:1px solid #e5e7eb; cursor:pointer; }
+    .measure-tick span { position:absolute; bottom:2px; left:4px; font-size:10px; color:#374151; }
+    #progress-bar { position:absolute; top:0; height:100%; width:2px; background:#1d4ed8; }
+    #player { display:none; }
+    .track { display:flex; align-items:center; gap:12px; padding:8px 10px; border:1px solid #e5e7eb;
+      border-radius:10px; background:#fafafa; margin-bottom:12px; }
+    .track label { min-width:180px; max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600; }
+    .track .slider-wrap { flex:1; }
+    .track input[type=range]{ width:100%; }
+    .btn { border:1px solid #d1d5db; background:#fff; padding:6px 10px; border-radius:8px; cursor:pointer; font-size:.9rem; }
+    .btn:hover{ background:#f3f4f6; }
+    .btn.solo.active { border-color:#2563eb; background:#e0ecff; }
+    .btn.mute.active { border-color:#dc2626; background:#ffe2e2; }
+    .badge { font-size: 11px; margin-left:6px; padding:2px 6px; border-radius:6px; vertical-align:middle; }
+    .ok { background:#e8f5e9; color:#166534; border:1px solid #bbf7d0; }
+    .bad { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+    #password-gate { max-width: 520px; margin: 18px auto; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; }
+    #password-gate p { margin: 6px 0; }
+    #access-denied { color:#dc2626; font-weight:700; display:none; }
+    #pw-hint { font-size: 12px; color:#374151; }
+    #pw-error { color:#dc2626; font-size: 13px; display:none; }
+    #pw-success { color:#166534; font-size: 13px; display:none; }
+    #pw-row { display:flex; gap:8px; align-items:center; }
+    #password-input { flex:1; padding: 8px; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <h1 id="track-title">Choir Practice Player</h1>
+  <div id="timer">Measure --, Beat --</div>
+
+  <!-- Song menu (shown after password) -->
+  <div id="song-picker">
+    <label for="song-select"><strong>Choose a song:</strong></label>
+    <select id="song-select"></select>
+  </div>
+
+  <div id="main-controls">
+    <button id="play-pause" disabled>Loading…</button>
+    <button id="stop" disabled>Stop</button>
+  </div>
+
+  <div id="jump-controls">
+    <label for="jump-measure">Jump to measure:</label>
+    <input type="number" id="jump-measure" min="1" max="127" />
+    <button class="btn" onclick="jumpToMeasure()">Go</button>
+  </div>
+
+  <div id="timeline"><div id="progress-bar"></div></div>
+
+  <div id="password-gate">
+    <p><strong>Enter password to access the choir tracks:</strong></p>
+    <div id="pw-row">
+      <input type="password" id="password-input" placeholder="Enter password" />
+      <button class="btn" id="pw-submit">Submit</button>
+    </div>
+    <p id="pw-hint">Password must be at least 12 characters and include an uppercase letter, lowercase letter, number, and symbol.</p>
+    <p id="pw-error">Password doesn’t meet requirements or is incorrect. (Tip: remove any leading/trailing spaces if you pasted.)</p>
+    <p id="pw-success">Looks good! Unlocking…</p>
+    <p id="access-denied">Access Denied</p>
+  </div>
+
+  <div id="player"></div>
+
+  <script>
+    // ---------------- AUTH ----------------
+    const correctPassword = "Sing!Choir2025";
+    const pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{12,}$/;
+
+    document.getElementById("pw-submit").addEventListener("click", checkPassword);
+    document.getElementById("password-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") checkPassword();
+    });
+
+    function checkPassword() {
+      const input = (document.getElementById("password-input").value || "").trim();
+      const err = document.getElementById("pw-error");
+      const ok  = document.getElementById("pw-success");
+      err.style.display = "none"; ok.style.display = "none";
+      if (!pwRegex.test(input)) { err.style.display = "block"; return; }
+      if (input !== correctPassword) { err.style.display = "block"; return; }
+
+      ok.style.display = "block";
+      document.getElementById("password-gate").style.display = "none";
+      showAppUI();
+      bootstrapSongs(); // build menu and load the first song
+    }
+
+    function showAppUI() {
+      document.getElementById("song-picker").style.display = "block";
+      document.getElementById("main-controls").style.display = "block";
+      document.getElementById("track-title").style.display = "block";
+      document.getElementById("timer").style.display = "block";
+      document.getElementById("timeline").style.display = "block";
+      document.getElementById("jump-controls").style.display = "block";
+      document.getElementById("player").style.display = "block";
+      document.getElementById("play-pause").addEventListener("click", playPause);
+      document.getElementById("stop").addEventListener("click", stopAll);
+    }
+
+    // --------------- SONG LIBRARY ---------------
+    // Add more songs by copying this object and changing fields.
+    const SONGS = [
+      {
+        id: "tribute",
+        title: "A Tribute to the Armed Forces",
+        basePath: "assets/A Tribute to the Armed Forces/",
+        tracks: [
+          { label: "Accompaniment", file: "A Tribute to the Armed Services accompaniment Track.wav" },
+          { label: "Soprano",       file: "SopranoA Tribute to the Armed Forces.wav" },
+          { label: "Alto",          file: "AltoA Tribute to the Armed Forces.wav" },
+          { label: "Tenor",         file: "TenorA Tribute to the Armed Forces.wav" },
+          { label: "Bass",          file: "BassA Tribute to the Armed Forces.wav" }
+        ],
+        // Timeline/tempo for this song:
+        beatsPerMeasure: 4,              // set to 3 for 3/4, etc.
+        measuresTotal:   127,
+        pickupBeats:     1,              // quarter-note pickup
+        tempoMap: [
+          { measure: 1, bpm: 96 },       // pickup + measures 1–7
+          { measure: 8, bpm: 108 }       // from measure 8 onward
+        ]
+      },
+      {
+        id: "ghostbusters",
+        title: "Ghostbusters",
+        basePath: "assets/Ghostbusters/",
+        tracks: [
+          { label: "Accompaniment", file: "Ghostbusters accompaniment.mp3" },
+        ],
+        // Timeline/tempo for this song:
+        beatsPerMeasure: 4,              // set to 3 for 3/4, etc.
+        measuresTotal:   96,
+        tempoMap: [
+          { measure: 1, bpm: 110 },       // 
+        ]
+      },
+      {
+        id: "spell",
+        title: "I Put a Spell On You",
+        basePath: "assets/I Put a Spell On You/",
+        tracks: [
+          { label: "Accompaniment", file: "I Put a Spell on You Accompaniment.mp3" },
+          { label: "Soprano",       file: "Sop I Put a Spell On You-mp3.mp3" },
+          { label: "Alto",          file: "Alto I Put a Spell On You-mp3.mp3" },
+          { label: "Tenor",         file: "Tenor I Put a Spell On You-mp3.mp3" },
+          { label: "Bass",          file: "Bass I Put a Spell On You-mp3.mp3" }
+        ],
+        // Timeline/tempo for this song:
+        beatsPerMeasure: 4,              // set to 3 for 3/4, etc.
+        measuresTotal:   72,
+        tempoMap: [
+          { measure: 1, bpm: 60 },       // pickup + measures 1–7
+          { measure: 21, bpm: 152 }       // from measure 21 onward
+        ]
+      },
+      {
+        id: "monster",
+        title: "Monster Mash",
+        basePath: "assets/Monster Mash/",
+        tracks: [
+          { label: "Accompaniment", file: "Monster Mash Accompaniment.mp3" },
+          { label: "Soprano",       file: "Soprano Monster Mash-mp3.mp3" },
+          { label: "Alto",          file: "Alto Monster Mash-mp3.mp3" },
+          { label: "Baritone",      file: "Baritone Monster Mash-mp3.mp3" },
+        ],
+        // Timeline/tempo for this song:
+        beatsPerMeasure: 4,              // set to 3 for 3/4, etc.
+        measuresTotal:   72,
+        tempoMap: [
+          { measure: 1, bpm: 144 },       // 
+        ]
+      },
+      // Example stub for adding another song later:
+      // {
+      //   id: "close-every-door",
+      //   title: "Close Every Door",
+      //   basePath: "assets/Close Every Door/",
+      //   tracks: [
+      //     { label: "Accompaniment", file: "Accompaniment Close Every Door.wav" },
+      //     { label: "Joseph",        file: "Joseph Close Every Door.wav" },
+      //     { label: "S1",            file: "S1 Close Every Door.wav" },
+      //     { label: "S2",            file: "S2 Close Every Door.wav" },
+      //     { label: "Alto",          file: "Alto Close Every Door.wav" },
+      //     { label: "Tenor",         file: "Tenor Close Every Door.wav" },
+      //     { label: "Bass",          file: "Bass Close Every Door.wav" }
+      //   ],
+      //   beatsPerMeasure: 3,
+      //   measuresTotal:   100,          // <- set the actual count
+      //   pickupBeats:     0,            // <- set if there is a pickup
+      //   tempoMap: [
+      //     { measure: 1, bpm: 80 }
+      //   ]
+      // }
+    ];
+
+    // --------------- GLOBAL STATE ---------------
+    let audioContext;
+    let sources = [];
+    let channel = []; // per-track state
+    let isPlaying = false;
+    let offset = 0;
+    let startTime = 0;
+
+    // per-song timing
+    let currentSong = null;
+    let measureStartTimes = []; // 1-based index
+    let totalScoreTime = 0;
+    let pickupDuration = 0;
+
+    // --------------- SONG BOOTSTRAP ---------------
+    function bootstrapSongs() {
+      // populate menu
+      const sel = document.getElementById("song-select");
+      sel.innerHTML = "";
+      SONGS.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = s.title;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener("change", () => {
+        const next = SONGS.find(s => s.id === sel.value);
+        if (next) setSong(next);
+      });
+
+      // load first song by default
+      setSong(SONGS[0]);
+    }
+
+    function setSong(songCfg) {
+      // stop current audio if playing
+      stopAll(true);
+      currentSong = songCfg;
+
+      // UI: title
+      document.getElementById("track-title").textContent = songCfg.title;
+
+      // Rebuild timing + timeline
+      buildTimingFromConfig(songCfg);
+      drawTimeline(songCfg);
+
+      // Clear player rows and load tracks for this song
+      document.getElementById("player").innerHTML = "";
+      channel = [];
+      initPlayerForSong(songCfg);
+    }
+
+    // --------------- TIMING / TEMPO ---------------
+    function bpmAtMeasure(m, tempoMap) {
+      let bpm = tempoMap[0].bpm;
+      for (let i = 0; i < tempoMap.length; i++) {
+        if (tempoMap[i].measure <= m) bpm = tempoMap[i].bpm;
+        else break;
+      }
+      return bpm;
+    }
+
+    function buildTimingFromConfig(cfg) {
+      const firstBpm = bpmAtMeasure(1, cfg.tempoMap);
+      pickupDuration = (cfg.pickupBeats || 0) * (60 / firstBpm);
+
+      measureStartTimes = new Array(cfg.measuresTotal + 2);
+      let t = pickupDuration; // measure 1 begins after pickup
+      for (let m = 1; m <= cfg.measuresTotal; m++) {
+        measureStartTimes[m] = t;
+        const dur = cfg.beatsPerMeasure * (60 / bpmAtMeasure(m, cfg.tempoMap));
+        t += dur;
+      }
+      measureStartTimes[cfg.measuresTotal + 1] = t; // sentinel
+      totalScoreTime = t;
+
+      // update jump max
+      const jm = document.getElementById("jump-measure");
+      if (jm) jm.max = String(cfg.measuresTotal);
+    }
+
+    function timeToPosition(t, cfg) {
+      if (t < pickupDuration) {
+        return { inPickup: true, measure: 1, beat: 1, fracWithinMeasure: 0 };
+      }
+      let m = 1;
+      while (m <= cfg.measuresTotal && !(measureStartTimes[m] <= t && t < measureStartTimes[m + 1])) m++;
+      if (m > cfg.measuresTotal) m = cfg.measuresTotal;
+
+      const start = measureStartTimes[m];
+      const end = measureStartTimes[m + 1] ?? totalScoreTime;
+      const frac = Math.min(0.999, Math.max(0, (t - start) / (end - start)));
+      const beat = Math.min(cfg.beatsPerMeasure, Math.floor(frac * cfg.beatsPerMeasure) + 1);
+
+      return { inPickup: false, measure: m, beat, fracWithinMeasure: frac };
+    }
+
+    // --------------- AUDIO LOADING / UI ---------------
+    async function initPlayerForSong(cfg) {
+      if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const playerDiv = document.getElementById("player");
+
+      let loadedCount = 0;
+      for (const t of cfg.tracks) {
+        // Row UI
+        const row = document.createElement("div");
+        row.className = "track";
+        const label = document.createElement("label");
+        label.textContent = t.label;
+
+        const sliderWrap = document.createElement("div");
+        sliderWrap.className = "slider-wrap";
+        const slider = document.createElement("input");
+        slider.type = "range"; slider.min = 0; slider.max = 1; slider.step = 0.01; slider.value = 1;
+        sliderWrap.appendChild(slider);
+
+        const muteBtn = document.createElement("button");
+        muteBtn.className = "btn mute"; muteBtn.textContent = "Mute";
+        const soloBtn = document.createElement("button");
+        soloBtn.className = "btn solo"; soloBtn.textContent = "Solo";
+
+        row.append(label, sliderWrap, muteBtn, soloBtn);
+        playerDiv.appendChild(row);
+
+        // Load audio
+        try {
+          const url = encodeURI(cfg.basePath + t.file);
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const arr = await resp.arrayBuffer();
+          const buffer = await audioContext.decodeAudioData(arr);
+
+          const gain = audioContext.createGain();
+          gain.gain.value = parseFloat(slider.value);
+
+          const ch = { buffer, gain, slider, muteBtn, soloBtn, muted:false, solo:false };
+          channel.push(ch);
+
+          // UI wiring
+          slider.addEventListener('input', updateMix);
+          muteBtn.addEventListener('click', () => { ch.muted = !ch.muted; muteBtn.classList.toggle('active', ch.muted); updateMix(); });
+          soloBtn.addEventListener('click', () => { ch.solo = !ch.solo; soloBtn.classList.toggle('active', ch.solo); updateMix(); });
+
+          // Status badge
+          const good = document.createElement('span');
+          good.className = 'badge ok';
+          good.textContent = 'Loaded';
+          label.appendChild(good);
+
+          loadedCount++;
+        } catch (e) {
+          console.error(`Failed to load "${t.label}"`, e);
+          const bad = document.createElement('span');
+          bad.className = 'badge bad';
+          bad.textContent = 'Failed';
+          label.appendChild(bad);
+        }
+      }
+
+      updateMix();
+      const playBtn = document.getElementById("play-pause");
+      const stopBtn  = document.getElementById("stop");
+      if (loadedCount > 0) {
+        playBtn.disabled = false; playBtn.textContent = "Play";
+        stopBtn.disabled  = false;
+      } else {
+        playBtn.textContent = "No audio loaded";
+      }
+    }
+
+    function updateMix() {
+      const anySolo = channel.some(ch => ch.solo);
+      channel.forEach(ch => {
+        const sliderVal = parseFloat(ch.slider.value);
+        const soloGate = anySolo ? (ch.solo ? 1 : 0) : 1;
+        const muteGate = ch.muted ? 0 : 1;
+        ch.gain.gain.value = sliderVal * soloGate * muteGate;
+      });
+    }
+
+    async function ensureContext() {
+      if (!audioContext) return;
+      if (audioContext.state !== 'running') {
+        try { await audioContext.resume(); } catch (e) {}
+      }
+    }
+
+    async function playPause() {
+      if (channel.length === 0) return;
+      await ensureContext();
+
+      const btn = document.getElementById("play-pause");
+      if (!isPlaying) {
+        if (!Number.isFinite(offset) || offset < 0) offset = 0;
+        startTime = audioContext.currentTime - offset;
+        sources = channel.map(ch => {
+          const src = audioContext.createBufferSource();
+          src.buffer = ch.buffer;
+          src.connect(ch.gain).connect(audioContext.destination);
+          src.start(0, offset);
+          return src;
+        });
+        isPlaying = true;
+        btn.textContent = "Pause";
+        animateProgress();
+      } else {
+        const elapsed = audioContext.currentTime - startTime;
+        offset = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+        sources.forEach(src => { try { src.stop(); } catch(_){} });
+        sources = [];
+        isPlaying = false;
+        btn.textContent = "Play";
+      }
+    }
+
+    function stopAll(silent=false) {
+      if (sources && sources.length) sources.forEach(src => { try { src.stop(); } catch(_){} });
+      sources = [];
+      isPlaying = false;
+      offset = 0;
+      startTime = audioContext ? audioContext.currentTime : 0;
+      if (!silent) {
+        document.getElementById("play-pause").textContent = "Play";
+        const bar = document.getElementById("progress-bar");
+        if (bar) bar.style.left = "0px";
+        document.getElementById("timer").textContent = "Measure 1, Beat 1";
+      }
+    }
+
+    function animateProgress() {
+      const bar = document.getElementById("progress-bar");
+      const update = () => {
+        if (!isPlaying) return;
+        const elapsed = audioContext.currentTime - startTime;
+        const pos = timeToPosition(elapsed, currentSong);
+
+        if (pos.inPickup) {
+          document.getElementById("timer").textContent = "Pickup";
+          bar.style.left = "0px";
+        } else {
+          document.getElementById("timer").textContent = `Measure ${pos.measure}, Beat ${pos.beat}`;
+          const px = ((pos.measure - 1) + pos.fracWithinMeasure) * 34;
+          bar.style.left = `${px}px`;
+        }
+        requestAnimationFrame(update);
+      };
+      update();
+    }
+
+    // --------------- TIMELINE / JUMP ---------------
+    function drawTimeline(cfg) {
+      const timeline = document.getElementById("timeline");
+      [...timeline.querySelectorAll('.measure-tick')].forEach(el => el.remove());
+      for (let i = 1; i <= cfg.measuresTotal; i++) {
+        const tick = document.createElement("div");
+        tick.className = "measure-tick";
+        tick.innerHTML = `<span>${i}</span>`;
+        tick.onclick = () => jumpToMeasureNumber(i);
+        timeline.appendChild(tick);
+      }
+    }
+
+    function jumpToMeasure() {
+      const m = parseInt(document.getElementById("jump-measure").value, 10);
+      if (!Number.isFinite(m) || m < 1 || m > currentSong.measuresTotal) return;
+      jumpToMeasureNumber(m);
+    }
+
+    function jumpToMeasureNumber(measureNumber) {
+      const time = measureStartTimes[measureNumber] ?? pickupDuration;
+      offset = time;
+      if (isPlaying && sources && sources.length) {
+        sources.forEach(src => { try { src.stop(); } catch(_){} });
+        sources = [];
+        isPlaying = false;
+      }
+      playPause();
+    }
+  </script>
+</body>
+</html>
