@@ -45,7 +45,6 @@
 </head>
 <body>
   <h1 id="track-title">Choir Practice Player</h1>
-  <div id="timer">Measure --, Beat --</div>
 
   <!-- Song menu (shown after password) -->
   <div id="song-picker">
@@ -58,12 +57,6 @@
     <button id="stop" disabled>Stop</button>
   </div>
 
-  <div id="jump-controls">
-    <label for="jump-measure">Jump to measure:</label>
-    <input type="number" id="jump-measure" min="1" max="127" />
-    <button class="btn" onclick="jumpToMeasure()">Go</button>
-  </div>
-
   <div id="timeline"><div id="progress-bar"></div></div>
 
   <div id="password-gate">
@@ -72,7 +65,7 @@
       <input type="password" id="password-input" placeholder="Enter password" />
       <button class="btn" id="pw-submit">Submit</button>
     </div>
-    <p id="pw-hint">Password must be at least 12 characters and include an uppercase letter, lowercase letter, number, and symbol.</p>
+    <p id="pw-hint">David emailed the password to all choir members, please check your email.</p>
     <p id="pw-error">Password doesn’t meet requirements or is incorrect. (Tip: remove any leading/trailing spaces if you pasted.)</p>
     <p id="pw-success">Looks good! Unlocking…</p>
     <p id="access-denied">Access Denied</p>
@@ -82,7 +75,7 @@
 
   <script>
     // ---------------- AUTH ----------------
-    const correctPassword = "Sing!Choir2025";
+    const correctPassword = "1HTLC!";
     const pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{12,}$/;
 
     document.getElementById("pw-submit").addEventListener("click", checkPassword);
@@ -120,11 +113,10 @@
     // Add more songs by copying this object and changing fields.
     const SONGS = [
       {
-        id: "tribute",
-        title: "A Tribute to the Armed Forces",
-        basePath: "assets/A Tribute to the Armed Forces/",
+        id: "come",
+        title: "Come As You Are",
+        basePath: "assets/Come As You Are/",
         tracks: [
-          { label: "Accompaniment", file: "A Tribute to the Armed Services accompaniment Track.wav" },
           { label: "Soprano",       file: "SopranoA Tribute to the Armed Forces.wav" },
           { label: "Alto",          file: "AltoA Tribute to the Armed Forces.wav" },
           { label: "Tenor",         file: "TenorA Tribute to the Armed Forces.wav" },
@@ -139,56 +131,7 @@
           { measure: 8, bpm: 108 }       // from measure 8 onward
         ]
       },
-      {
-        id: "ghostbusters",
-        title: "Ghostbusters",
-        basePath: "assets/Ghostbusters/",
-        tracks: [
-          { label: "Accompaniment", file: "Ghostbusters accompaniment.mp3" },
-        ],
-        // Timeline/tempo for this song:
-        beatsPerMeasure: 4,              // set to 3 for 3/4, etc.
-        measuresTotal:   96,
-        tempoMap: [
-          { measure: 1, bpm: 110 },       // 
-        ]
-      },
-      {
-        id: "spell",
-        title: "I Put a Spell On You",
-        basePath: "assets/I Put a Spell On You/",
-        tracks: [
-          { label: "Accompaniment", file: "I Put a Spell on You Accompaniment.mp3" },
-          { label: "Soprano",       file: "Sop I Put a Spell On You-mp3.mp3" },
-          { label: "Alto",          file: "Alto I Put a Spell On You-mp3.mp3" },
-          { label: "Tenor",         file: "Tenor I Put a Spell On You-mp3.mp3" },
-          { label: "Bass",          file: "Bass I Put a Spell On You-mp3.mp3" }
-        ],
-        // Timeline/tempo for this song:
-        beatsPerMeasure: 4,              // set to 3 for 3/4, etc.
-        measuresTotal:   72,
-        tempoMap: [
-          { measure: 1, bpm: 60 },       // pickup + measures 1–7
-          { measure: 21, bpm: 152 }       // from measure 21 onward
-        ]
-      },
-      {
-        id: "monster",
-        title: "Monster Mash",
-        basePath: "assets/Monster Mash/",
-        tracks: [
-          { label: "Accompaniment", file: "Monster Mash Accompaniment.mp3" },
-          { label: "Soprano",       file: "Soprano Monster Mash-mp3.mp3" },
-          { label: "Alto",          file: "Alto Monster Mash-mp3.mp3" },
-          { label: "Baritone",      file: "Baritone Monster Mash-mp3.mp3" },
-        ],
-        // Timeline/tempo for this song:
-        beatsPerMeasure: 4,              // set to 3 for 3/4, etc.
-        measuresTotal:   72,
-        tempoMap: [
-          { measure: 1, bpm: 144 },       // 
-        ]
-      },
+     
       // Example stub for adding another song later:
       // {
       //   id: "close-every-door",
