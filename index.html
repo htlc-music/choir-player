@@ -228,13 +228,18 @@
 
     // --------------- TIMING / TEMPO ---------------
     function bpmAtMeasure(m, tempoMap) {
-      let bpm = tempoMap[0].bpm;
-      for (let i = 0; i < tempoMap.length; i++) {
-        if (tempoMap[i].measure <= m) bpm = tempoMap[i].bpm;
-        else break;
-      }
-      return bpm;
-    }
+  // If no tempoMap provided, default to a steady 96 BPM
+  const map = (Array.isArray(tempoMap) && tempoMap.length)
+    ? tempoMap
+    : [{ measure: 1, bpm: 96 }];
+
+  let bpm = map[0].bpm;
+  for (let i = 0; i < map.length; i++) {
+    if (map[i].measure <= m) bpm = map[i].bpm;
+    else break;
+  }
+  return bpm;
+}
 
     function buildTimingFromConfig(cfg) {
       const firstBpm = bpmAtMeasure(1, cfg.tempoMap);
