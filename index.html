@@ -75,8 +75,8 @@
 
   <script>
     // ---------------- AUTH ----------------
-    const correctPassword = "1HTLC!";
-    const pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{12,}$/;
+    const correctPassword = "1Htlc!";
+    const pwRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{6,}$/;
 
     document.getElementById("pw-submit").addEventListener("click", checkPassword);
     document.getElementById("password-input").addEventListener("keydown", (e) => {
