@@ -121,6 +121,21 @@
     // Add more songs by copying this object and changing fields.
     const SONGS = [
       {
+        id: "feet",
+        title: "Guide My Feet",
+        basePath: "assets/Guide My Feet/",
+        tracks: [
+          { label: "Accompaniment", file: "Accompaniment Guide My Feet.wav" },
+          { label: "Soprano",       file: "Soprano Guide My Feet.wav" },
+          { label: "Alto",          file: "Alto Guide My Feet.wav" },
+          { label: "Tenor",         file: "Tenor Guide My Feet.wav" },
+          { label: "Bass",          file: "Bass Guide My Feet.wav" }
+        ],
+        // Timeline/tempo for this song:
+        beatsPerMeasure: 4,              // set to 3 for 3/4, etc.
+        measuresTotal:   120,
+      },
+      {
         id: "come",
         title: "Come As You Are",
         basePath: "assets/Come As You Are/",
